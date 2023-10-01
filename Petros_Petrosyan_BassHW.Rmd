@@ -1,0 +1,143 @@
+---
+title: "Bass Analysis"
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-10-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Cowboy C4
+
+The innovation that I have chosen is a new minimalist electronic bike named “Cowboy C4”. Cowboy, a Belgian-based startup, has introduced their fourth-generation e-bike this year, and it's a minimalist's delight. The C4 boasts a sleek, cable-free design with a matte frame, creating a clean and uncluttered look. What sets the C4 apart is its emphasis on connectivity. You can secure your smartphone to the bike's stem-integrated "cockpit" for wireless charging and access to Cowboy's app. This app offers a range of features, including directions, ride tracking, battery status, and the ability to connect with fellow riders. As a result, hundreds of Cowboy riders have been coming together for group rides in Paris, thanks to this exciting feature.
+
+
+# Alternative inovation Corratec
+
+I am going to do my research for a specific country which is Germany
+
+As a look-a-like invention I found the best selling bike in Germany called Corratec. Corratec is a German bicycle manufacturer founded in 1990, headquartered in Bavaria, Germany. They are known for producing a wide range of high-quality bicycles, including road bikes, mountain bikes, e-bikes, trekking bikes, and city bikes. Corratec has a reputation for innovation in bicycle design and technology, with a focus on features like their "Inside Link" suspension system and e-bike technology. They have sponsored professional cycling teams and athletes, contributing to their reputation in competitive cycling. The company also emphasizes environmental responsibility in their production processes. With a global presence and a commitment to quality, Corratec serves a diverse customer base of cyclists worldwide. Corratec has 38.5% market share according to bike.eu.com. 
+
+Reading data
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(ggpubr)
+library(diffusion)
+
+bikess = read_xlsx("bike.xlsx")
+bikess
+```
+
+```{r}
+ggplot(data = bikess, aes(x = Year, y = Sales)) +
+  geom_bar(fill = '#1D7599', stat = 'identity') + ylab("Sales (In million $)")
+```
+
+
+
+# Diffusion 
+
+## Model 1
+
+```{r}
+parameters <- diffusion(bikess$Sales)
+p<-parameters$w['p']
+q<-parameters$w['q']
+m<-parameters$w['m']
+```
+
+```{r}
+parameters
+```
+The innovation has a large untapped market potential, but its initial adoption rate is slow. However, the high coefficient of imitation implies that once adoption begins, it may accelerate. Careful marketing and strategies to trigger initial adoption are crucial for success, considering the slow start. 
+
+We will use 2 functions: Incremental Adoption and Cumulative Adoption function.
+
+```{r}
+bass.f <- function(t,p,q){ ((p+q)**2/p)*exp(-(p+q)*t)/ (1+(q/p)*exp(-(p+q)*t))**2 }
+
+
+bass.F <- function(t,p,q){ (1-exp(-(p+q)*t))/ (1+(q/p)*exp(-(p+q)*t))
+}
+```
+
+
+
+```{r}
+
+bikess$Year = as.integer(bikess$Year)
+bikess$Cum_sales <- cumsum(bikess$Sales)
+g1 <- ggplot(data = bikess, aes(x = Year, y = Sales)) +
+  geom_bar(fill = "skyblue", stat = 'identity') + ylab("Sales (In million $)")
+g2 <- ggplot(data = bikess, aes(x=Year, y = Cum_sales)) + geom_line() +
+  ylab("Cumulative Sales (In million $)")
+ggarrange(g1, g2)
+```
+Doing Predictions on the data we already have
+
+```{r}
+bikess$prediction <- bass.f(1:12, p = p, q = q)*m
+ggplot(data = bikess, aes(x = Year, y = Sales)) + geom_bar(stat = 'identity') +
+  geom_point(aes(x=Year, y = prediction), col = 'red')
+
+```
+We can see that our predictions are not accurate enough so we will try another method.
+
+
+# Non-Linear Leasy Squares (NLS)
+
+
+```{r}
+sales = bikess$Sales
+t = 1:length(sales)
+bass_m = nls(sales ~ m*(((p+q)**2/p)*exp(-(p+q)*t))/(1+(q/p)*exp(-(p+q)*t))**2,
+start=c(list(m=sum(sales),p=0.02,q=0.4)), control = list(maxiter=5000, tol = 8))
+bass_m
+```
+The model achieved convergence quickly with a low tolerance of 3.846. However, the residual sum-of-squares is relatively high at 6.876e+12, suggesting that the model may not fit the data well.
+
+ 
+```{r}
+ m <- bass_m$m$getPars()['m']
+p <- bass_m$m$getPars()['p']
+q <- bass_m$m$getPars()['q']
+```
+
+
+```{r}
+bikess$prediction2 <- bass.f(1:12, p = p, q = q)*m
+ggplot(data = bikess, aes(x = Year, y = Sales)) +
+geom_bar(stat = 'identity') + ylab("Sales (In million $)") +
+  geom_point(aes(x=Year, y = prediction), col = 'red')
+```
+
+
+
+# Final Predictions
+
+
+
+```{r}
+years_ahead <- 50
+innovation_prediction <- bass.f(1:years_ahead, p = p, q = q)*m
+years <- seq(from = 2021, to = 2020 + years_ahead, by = 1)
+innovation_data <- data.frame(Year = years, Sales = innovation_prediction)
+```
+Now lets make predictions 50 years ahead.
+```{r}
+ ggplot(data = innovation_data, aes(x = Year, y = Sales)) +
+  geom_bar(stat='identity', fill = 'green3') + ylab("Sales (In million $)") 
+```
+
+
+
+# Sources
+
+Information on Corratec: https://www.bike-eu.com/market-reports-germany
+Data: https://www.statista.com/statistics/1265760/e-bikes-sold-number-germany/
+Innovation: https://time.com/collection/best-inventions-2022/6224752/cowboy-c4/
